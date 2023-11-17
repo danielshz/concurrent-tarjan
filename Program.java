@@ -102,6 +102,11 @@ public class Program {
 		System.out.println("Tempo em segundos: " + ((end - begin) * Math.pow(10, -9)));
 	}
 
+	public static void concurrentTarjan(AdjacencyList graph) {
+		// Preparação para o Tarjan
+		HashMap<Integer, Node> nodes = Node.getNodeMap(graph.getVerticesId());
+	}
+
 	public static AdjacencyList constructGraph(String path) {
 		AdjacencyList g;
 

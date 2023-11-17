@@ -1,3 +1,4 @@
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Set;
 
@@ -12,12 +13,16 @@ public class Node {
 	public int index;
 	public int lowlink;
 	public Status status;
+	public int search;
+	public ArrayList<Integer> blocked;
 
 	public Node(int id, int index, int lowlink) {
 		this.id = id;
 		this.index = index;
 		this.lowlink = lowlink;
 		this.status = Status.UNSEEN;
+		this.blocked = new ArrayList<>();
+		this.search = -1;
 	}
 
 	public void updateLowLink(int update) {
