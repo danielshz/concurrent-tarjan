@@ -3,9 +3,9 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-class AdjacencyList {
-	private Map<Integer, Set<Integer>> in; //in-neighbours
-	private Map<Integer, Set<Integer>> out; //out-neighbours
+public class AdjacencyList {
+	private Map<Integer, HashSet<Integer>> in; //in-neighbours
+	private Map<Integer, HashSet<Integer>> out; //out-neighbours
 
 	public AdjacencyList(int n) {
 		this.in = new HashMap<>();
@@ -18,7 +18,7 @@ class AdjacencyList {
 	}
 
 	public void addEdge(int orig, int dest) {
-		Set<Integer> inSet = this.in.get(dest);
+		HashSet<Integer> inSet = this.in.get(dest);
 
 		if(inSet == null) {
 			inSet = new HashSet<>();
@@ -28,7 +28,7 @@ class AdjacencyList {
 		inSet.add(orig);
 
 		//updates out-neighbours
-		Set<Integer> outSet = this.out.get(orig);
+		HashSet<Integer> outSet = this.out.get(orig);
 
 		if(outSet == null) {
 			outSet = new HashSet<>();
@@ -46,7 +46,7 @@ class AdjacencyList {
 
 	public void showEdges() {
 		for(int v = 0; v < this.out.size(); v++) {
-			Set<Integer> outSet = this.out.get(v);
+			HashSet<Integer> outSet = this.out.get(v);
 
 			if(outSet != null) {
 				for(int elem : this.out.get(v))
@@ -61,11 +61,19 @@ class AdjacencyList {
 		return this.in.size();
 	}
 
-	public Set<Integer> getInEdges(int v) {
+    public Set<Integer> getVerticesId() {
+        return this.out.keySet();
+    }
+
+	public HashSet<Integer> getInEdges(int v) {
 		return this.in.get(v);
 	}
 
-	public Set<Integer> getOutEdges(int v) {
+	public HashSet<Integer> getOutEdges(int v) {
 		return this.out.get(v);
+	}
+
+	public boolean removeOutEdge(int source, int destination) {
+		return this.out.get(source).remove(destination);
 	}
 }

@@ -1,3 +1,5 @@
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Set;
 import java.util.Stack;
 
@@ -9,19 +11,7 @@ public class Program {
 	private static Boolean[] visited;
 	private static Stack<Integer> stack;
 
-	public static void main(String[] args) {
-		String path = "";
-
-		if(args[0] == null) {
-			System.out.println("Falta argumentos! Digite <nome do arquivo>");
-			System.exit(0);
-		} else {
-			path = args[0];
-		}
-
-		//inicializa o grafo
-		AdjacencyList g = constructGraph(path);
-		
+	public static void DFS(AdjacencyList g) {
 		visited = new Boolean[g.getNumVertices()];
 
 		for(int i = 0; i < g.getNumVertices(); i++)
@@ -54,9 +44,62 @@ public class Program {
 
 			n++;
 		}
+
 		System.out.println("O maior tamanho foi na " + maiorPos + "º busca e tem " + maior + " vertices");
 		System.out.println("Tempo em segundos: " + ((fim - ini) * Math.pow(10, -9)));
+	}
+	public static void main(String[] args) {
+		String path = "";
 
+		if(args[0] == null) {
+			System.out.println("Falta argumentos! Digite <nome do arquivo>");
+			System.exit(0);
+		} else {
+			path = args[0];
+		}
+
+		// Leitura da lista de adjacências
+		AdjacencyList graph = constructGraph(path);
+
+		// DFS
+		// DFS(graph);
+
+		// Execução sequencial do Tarjan
+		sequentialTarjan(graph);
+	}
+
+	public static void sequentialTarjan(AdjacencyList graph) {
+		// Preparação para o Tarjan
+		HashMap<Integer, Node> nodes = Node.getNodeMap(graph.getVerticesId());
+		Tarjan tarjan = new Tarjan(graph, nodes);
+		ArrayList<Set<Integer>> SCCs = new ArrayList<>();
+
+		long begin = System.nanoTime();
+
+		// Seleção do nó inicial da busca em profundidade
+		Node startNode = Node.getNotInSCC(nodes);
+		
+		do {
+			ArrayList<Set<Integer>> result = tarjan.SequentialTarjan(startNode);
+			result.removeAll(SCCs);
+			SCCs.addAll(result);
+
+			for(Set<Integer> SCC : SCCs) {
+				for(int element : SCC) {
+					System.out.print("" + element + " ");
+				}
+	
+				System.out.println("");
+			}
+
+			System.out.println("");
+
+			startNode = Node.getNotInSCC(nodes);
+		} while(startNode != null);
+		
+		long end = System.nanoTime();
+
+		System.out.println("Tempo em segundos: " + ((end - begin) * Math.pow(10, -9)));
 	}
 
 	public static AdjacencyList constructGraph(String path) {
@@ -117,7 +160,7 @@ public class Program {
 			}
 
 			buffer.close();
-			System.out.println("Numero de vertices: " + g.getNumVertices() + " Numero de arestas: " + edgeNumber);
+			System.out.println("Numero de vertices: " + g.getNumVertices() + "\nNumero de arestas: " + edgeNumber);
 			return g;
 		} catch (IOException e) {
 			System.out.println("arquivo não encontrado!");

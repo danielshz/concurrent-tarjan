@@ -12,14 +12,12 @@ public class Node {
 	public int index;
 	public int lowlink;
 	public Status status;
-	public boolean exploredAllEdges;
 
 	public Node(int id, int index, int lowlink) {
 		this.id = id;
 		this.index = index;
 		this.lowlink = lowlink;
 		this.status = Status.UNSEEN;
-		this.exploredAllEdges = false;
 	}
 
 	public void updateLowLink(int update) {
@@ -29,9 +27,18 @@ public class Node {
     public static HashMap<Integer, Node> getNodeMap(Set<Integer> nodes) {
         HashMap<Integer, Node> nodeMap = new HashMap<>();
 
-        for (int nodeId : nodes)
+        for(int nodeId : nodes)
             nodeMap.put(nodeId, new Node(nodeId, -1, -1));
         
         return nodeMap;
     }
+
+	public static Node getNotInSCC(HashMap<Integer, Node> nodes) {
+		for (Node node : nodes.values()) {
+			if(node.status != Status.COMPLETE)
+				return node;
+		}
+
+		return null;
+	}
 }
