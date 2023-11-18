@@ -1,5 +1,6 @@
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 
 public class Node {
@@ -38,7 +39,7 @@ public class Node {
         return nodeMap;
     }
 
-	public static Node getNotInSCC(HashMap<Integer, Node> nodes) {
+	public static Node getNotInSCC(Map<Integer, Node> nodes) {
 		for (Node node : nodes.values()) {
 			if(node.status != Status.COMPLETE)
 				return node;

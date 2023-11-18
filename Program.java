@@ -2,7 +2,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Set;
 import java.util.Stack;
-
+import java.util.concurrent.ConcurrentHashMap;
 import java.io.IOException;
 import java.io.FileReader;
 import java.io.BufferedReader;
@@ -107,7 +107,7 @@ public class Program {
 
 	public static void concurrentTarjan(AdjacencyList graph, int nThreads) {
 		// Preparação para o Tarjan
-		HashMap<Integer, Node> nodes = Node.getNodeMap(graph.getVerticesId());
+		ConcurrentHashMap<Integer, Node> nodes = new ConcurrentHashMap<>(Node.getNodeMap(graph.getVerticesId()));
 		Scheduler scheduler = new Scheduler(nThreads, graph, nodes);
 
 		long begin = System.nanoTime();
