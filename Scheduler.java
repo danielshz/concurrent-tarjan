@@ -13,8 +13,8 @@ class Scheduler {
     private final Search[] searches;
     private HashMap<Integer, Node> suspended;
 
-	private Stack<Node>[] controlStacks;
-	private Stack<Node>[] tarjanStacks;
+	private ArrayList<Stack<Node>> controlStacks;
+	private ArrayList<Stack<Node>> tarjanStacks;
 
 	private AdjacencyList adjList;
 	private HashMap<Integer, Node> nodes;
@@ -29,8 +29,8 @@ class Scheduler {
         this.suspended = new HashMap<>();
 
         this.searches = new Search[nThreads];
-        this.controlStacks = new Stack[nThreads];
-        this.tarjanStacks = new Stack[nThreads];
+        this.controlStacks = new ArrayList<>();
+        this.tarjanStacks = new ArrayList<>();
         this.adjList = adjList;
         this.nodes = nodes;
         this.SCCs = new ArrayList<>();
@@ -38,9 +38,22 @@ class Scheduler {
         this.nodesToSearch = new LinkedList<>();
 
         for(int i = 0; i < nThreads; i++) {
+            this.controlStacks.add(new Stack<>());
+            this.tarjanStacks.add(new Stack<>());
             this.searches[i] = new Search(i);
             this.searches[i].start();
         } 
+    }
+
+    public boolean getShutDown(){
+        return this.shutdown;
+    }
+    public ArrayList<Set<Integer>> getSCCs(){
+        return this.SCCs;
+    }
+
+    public LinkedList<Node> getNodesToSearch(){
+        return this.nodesToSearch;
     }
 
     public synchronized void Suspend(int search, Node node) {
@@ -69,7 +82,7 @@ class Scheduler {
 
     public void execute(Node node) {
         synchronized(nodesToSearch) {
-            if(!this.shutdown) {
+            if(!this.shutdown && node.status == Node.Status.UNSEEN) {
                 this.nodesToSearch.addLast(node);
                 this.nodesToSearch.notify();
             }
@@ -91,11 +104,13 @@ class Scheduler {
         }
     }
 
-    public synchronized Node getNewNode() {
-        while(nodesToSearch.isEmpty() && (!shutdown)) {
-            try { 
-                nodesToSearch.wait(); 
-            } catch(InterruptedException ignored) {}
+    public Node getNewNode() {
+        synchronized(nodesToSearch){
+            while(nodesToSearch.isEmpty() && (!shutdown)) {
+                try { 
+                    nodesToSearch.wait(); 
+                } catch(InterruptedException ignored) {}
+            }
         }
 
         if(nodesToSearch.isEmpty() && shutdown)
@@ -103,7 +118,6 @@ class Scheduler {
 
         return (Node) nodesToSearch.removeFirst();
     }
-
     private class Search extends Thread {
         public int waitingFor = -1;
         public int index = 0;
@@ -118,69 +132,67 @@ class Scheduler {
             node.lowlink = this.index;
             node.status = Node.Status.INPROGRESS;
             node.search = this.searchId;
-    
+
             this.index++;
-    
-            controlStacks[searchId].push(node);
-            tarjanStacks[searchId].push(node);
+            controlStacks.get(searchId).push(node);
+            tarjanStacks.get(searchId).push(node);
         }
 
         public void run() {
-            Stack<Node> controlStack = controlStacks[searchId];
-            Stack<Node> tarjanStack = tarjanStacks[searchId];
+            Stack<Node> controlStack = controlStacks.get(searchId);
+            Stack<Node> tarjanStack = tarjanStacks.get(searchId);
 
-            Node startNode = getNewNode();
+            while(true){
+                Node startNode = getNewNode();
 
-            if(startNode == null)
-                return;
+                if(startNode == null)
+                    return;
 
-            addNode(startNode);
+                addNode(startNode);
 
-            while(!controlStack.isEmpty()) {
-                Node node = controlStack.lastElement();
-
-                synchronized(node) {
-                    Set<Integer> outNeighbours = adjList.getOutEdges(node.id);
-                    
-                    if(outNeighbours != null && !outNeighbours.isEmpty()) {
-                        int childId = outNeighbours.iterator().next();
-                        adjList.removeOutEdge(node.id, childId);
-    
-                        Node child = nodes.get(childId);
-    
-                        synchronized(child) {
-                            if(child.status == Node.Status.UNSEEN)
-                                addNode(child);
-                            else if(tarjanStack.contains(child))
-                                node.updateLowLink(child.index);
-                            else if(child.status != Node.Status.COMPLETE) {
-                                try {
-                                    child.wait();
-                                } catch (InterruptedException e) {
-                                    e.printStackTrace();
+                while(!controlStack.isEmpty()) {
+                    Node node = controlStack.lastElement();
+                    synchronized(node) {
+                        Set<Integer> outNeighbours = adjList.getOutEdges(node.id);
+                        
+                        if(outNeighbours != null && !outNeighbours.isEmpty()) {
+                            int childId = outNeighbours.iterator().next();
+                            adjList.removeOutEdge(node.id, childId);
+                            Node child = nodes.get(childId);
+        
+                            synchronized(child) {
+                                if(child.status == Node.Status.UNSEEN)
+                                    addNode(child);
+                                else if(tarjanStack.contains(child))
+                                    node.updateLowLink(child.index);
+                                else if(child.status != Node.Status.COMPLETE) {
+                                    try {
+                                        child.wait();
+                                    } catch (InterruptedException e) {
+                                        e.printStackTrace();
+                                    }
                                 }
                             }
-                        }
-                    } else {
-                        controlStack.pop();
-    
-                        if(!controlStack.isEmpty())
-                            controlStack.lastElement().updateLowLink(node.lowlink);
-                        
-                        if(node.lowlink == node.index) {
-                            Set<Integer> SCC = new HashSet<Integer>();
-    
-                            Node vertex;
-    
-                            do {
-                                vertex = tarjanStack.pop();
-    
-                                SCC.add(vertex.id);
-                                vertex.status = Node.Status.COMPLETE;
-                                node.notifyAll();
-                            } while(vertex.id != node.id);
-    
-                            SCCs.add(SCC);
+                        } else {
+                            controlStack.pop();
+        
+                            if(!controlStack.isEmpty())
+                                controlStack.lastElement().updateLowLink(node.lowlink);
+                            if(node.lowlink == node.index) {
+                                Set<Integer> SCC = new HashSet<Integer>();
+        
+                                Node vertex;
+        
+                                do {
+                                    vertex = tarjanStack.pop();
+        
+                                    SCC.add(vertex.id);
+                                    vertex.status = Node.Status.COMPLETE;
+                                    node.notifyAll();
+                                } while(vertex.id != node.id);
+        
+                                SCCs.add(SCC);
+                            }
                         }
                     }
                 }

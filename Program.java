@@ -50,12 +50,14 @@ public class Program {
 	}
 	public static void main(String[] args) {
 		String path = "";
+		int nThreads = 0;
 
-		if(args[0] == null) {
-			System.out.println("Falta argumentos! Digite <nome do arquivo>");
+		if(args.length != 2) {
+			System.out.println("Argumentos invalidos! Digite <nome do arquivo> <numero de threads>");
 			System.exit(0);
 		} else {
 			path = args[0];
+			nThreads = Integer.parseInt(args[1]);
 		}
 
 		// Leitura da lista de adjacências
@@ -65,7 +67,8 @@ public class Program {
 		// DFS(graph);
 
 		// Execução sequencial do Tarjan
-		sequentialTarjan(graph);
+		//sequentialTarjan(graph);
+		concurrentTarjan(graph, nThreads);
 	}
 
 	public static void sequentialTarjan(AdjacencyList graph) {
@@ -102,9 +105,31 @@ public class Program {
 		System.out.println("Tempo em segundos: " + ((end - begin) * Math.pow(10, -9)));
 	}
 
-	public static void concurrentTarjan(AdjacencyList graph) {
+	public static void concurrentTarjan(AdjacencyList graph, int nThreads) {
 		// Preparação para o Tarjan
 		HashMap<Integer, Node> nodes = Node.getNodeMap(graph.getVerticesId());
+		Scheduler scheduler = new Scheduler(nThreads, graph, nodes);
+
+		long begin = System.nanoTime();
+
+		// Seleção do nó inicial da busca em profundidade
+		Node startNode = Node.getNotInSCC(nodes);
+		scheduler.execute(startNode);
+
+		scheduler.shutdown();
+		for(Set<Integer> SCC : scheduler.getSCCs()) {
+			for(int element : SCC) {
+				System.out.print("" + element + " ");
+			}
+
+			System.out.println("");
+		}
+
+		System.out.println("");
+
+		long end = System.nanoTime();
+
+		System.out.println("Tempo em segundos: " + ((end - begin) * Math.pow(10, -9)));
 	}
 
 	public static AdjacencyList constructGraph(String path) {
