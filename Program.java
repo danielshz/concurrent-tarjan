@@ -117,6 +117,8 @@ public class Program {
 		scheduler.execute(startNode);
 
 		scheduler.shutdown();
+		
+		System.out.println();
 		for(Set<Integer> SCC : scheduler.getSCCs()) {
 			for(int element : SCC) {
 				System.out.print("" + element + " ");

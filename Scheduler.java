@@ -12,7 +12,7 @@ class Scheduler {
     private final int nThreads;
 
     private final Search[] searches;
-    private HashMap<Integer, Node> suspended;
+    private HashMap<Integer, Integer> suspended;
 
 	private ArrayList<Stack<Node>> controlStacks;
 	private ArrayList<Stack<Node>> tarjanStacks;
@@ -58,96 +58,199 @@ class Scheduler {
     }
 
     public synchronized boolean Suspend(Search search, Node node, Node child) {
-        ArrayList<Integer> blokingCycle = BlokingCycle(search.searchId, child.search);
-
+        ArrayList<Integer> blokingCycle = blokingCycle(search.id, child.search);
+        
+        System.out.print("Ciclo: ");
+        System.out.println(blokingCycle);
+        
         if(blokingCycle == null) {
-            node.blocked.add(search.searchId);
-            search.waitingFor = child.id;
-            suspended.put(search.searchId, node);
-
+            suspended.put(search.id, child.search);
+            System.out.println("Sem ciclo ::: s" + search.id);
             return true;
         }
         
-        TransferNodes(search, blokingCycle);
-        child.notifyAll();
+        System.out.println("Com ciclo ::: s" + search.id);
+        transferNodes(search, blokingCycle, child);
+        // child.notifyAll();
           
         return false;
     }
 
-    public synchronized void Unsuspend(Search search, Node node) {
-        suspended.remove(search.searchId);
-        search.waitingFor = -1;
-        node.blocked.remove(search.searchId);
+    public synchronized void unsuspend(int id) {
+        suspended.remove(id);
+        searches[id].waitingFor = null;
     }
 
-    private synchronized ArrayList<Integer> BlokingCycle(int search, int childSearch) {
-        int currentSearch = childSearch;
+    private synchronized ArrayList<Integer> blokingCycle(int start, int target) {
+        int current = target;
+
+        System.out.println(":::::::::::::: w s" + target + " : b s" + start);
         
-        ArrayList<Integer> searchesInCycle = new ArrayList<>();
-        searchesInCycle.add(currentSearch);
+        ArrayList<Integer> path = new ArrayList<>();
+        path.add(current);
 
-        for(int i = 1; i < searches.length; i++) {
-            Node node = suspended.get(currentSearch);
+        while(suspended.containsKey(current) && current != start) {
+            current = suspended.get(current);
 
-            if(node == null)
-                return null;
-
-            currentSearch = node.search;
-            
-            if(currentSearch == search)
-                return searchesInCycle;
-
-            searchesInCycle.add(currentSearch);
+            if(current != start)
+                path.add(current);
         }
 
-        return null;
+        return current != start ? null : new ArrayList<Integer>(path.reversed());
     }
 
-    private synchronized void TransferNodes(Search receiverSearch, ArrayList<Integer> blokingCycle) {
-        Stack<Node> tarjanStack = tarjanStacks.get(receiverSearch.searchId);
+    private synchronized Node getTransferNodes(Node senderWaitingIn, Stack<Node> senderTarjanStack, Stack<Node> senderControlStack, ArrayList<Node> tempTarjan, ArrayList<Node> tempControl) {
+        Node node = senderTarjanStack.pop();
+        int lowestLowlink = node.lowlink;
 
-        for(int senderId : blokingCycle) {
+        tempTarjan.add(node);
+
+        while(node.id != senderWaitingIn.id || lowestLowlink < node.index) {
+            node = senderTarjanStack.pop();
+            tempTarjan.add(node);
+            lowestLowlink = Math.min(lowestLowlink, node.lowlink);
+        }
+
+        Node oldestNode = node;
+
+        node = senderControlStack.pop();
+        tempControl.add(node);
+
+        while(node.id != oldestNode.id) {
+            node = senderControlStack.pop();
+            tempControl.add(node);
+        }
+
+        return oldestNode;
+    }
+
+    private synchronized void transferNodes(Search receiverSearch, ArrayList<Integer> blokingPath, Node child) {
+        Stack<Node> tarjanStack = receiverSearch.tarjanStack;
+        Stack<Node> controlStack = receiverSearch.controlStack;
+
+        ArrayList<ArrayList<Integer>> blockeds = new ArrayList<>();
+        ArrayList<Integer> blockers = new ArrayList<>();
+
+        HashMap<Integer, Node> waitingNodes = new HashMap<>();
+
+        ArrayList<Integer> emptySearches = new ArrayList<>();
+        ArrayList<Integer> nonEmptySearches = new ArrayList<>();
+
+        Node n1 = child;
+
+        for(int senderId : blokingPath) {
+            Search senderSearch = searches[senderId];
             Stack<Node> senderTarjanStack = tarjanStacks.get(senderId);
-            Stack<Node> tempStack = new Stack<>();
+            Stack<Node> senderControlStack = controlStacks.get(senderId);
+            ArrayList<Node> tempTarjan = new ArrayList<>();
+            ArrayList<Node> tempControl = new ArrayList<>();
 
-            Node node;
+            // ****** REVER ******
+            Node newWaitingFor = getTransferNodes(n1, senderTarjanStack, senderControlStack, tempTarjan, tempControl);
 
-            do {
-                node = senderTarjanStack.pop();
-                tempStack.push(node);
-            } while(node.id != node.lowlink);
+            // Atualizando atributos
+            Node oldWaitingFor = senderSearch.waitingFor;
+            oldWaitingFor.blocked.remove((Integer) senderId);
 
-            // Atualizando lista de buscas bloqueadas do nó
-            int senderWaitingNode = this.searches[senderId].waitingFor;
-            this.nodes.get(senderWaitingNode).blocked.remove(senderId);
-            
-            // Atualizando a busca para o novo nó esperado
-            this.searches[senderId].waitingFor = node.id;
-            
-            // Adicionando a busca bloqueada
-            node.blocked.add(senderId);
-            
-            // Atualizando o suspended
-            suspended.put(senderId, node);
+            waitingNodes.put(senderId, oldWaitingFor);
 
-            int baseIndex = receiverSearch.index - node.index;
+            senderSearch.waitingFor = newWaitingFor;
+            newWaitingFor.blocked.add(senderId);
 
-            while(!tempStack.isEmpty()) {
-                node = tempStack.pop();
-                node.index += baseIndex;
-                node.lowlink += baseIndex;
-                node.search = receiverSearch.searchId;
+            // suspended.put(senderId, newWaitingFor);
 
+            n1 = oldWaitingFor;
+
+            // Transferindo nós
+            int deltaIndex = receiverSearch.index - newWaitingFor.index;
+
+            ArrayList<Integer> allBlocked = new ArrayList<>();
+
+            for(Node node : tempTarjan) {
+                node.index += deltaIndex;
+                node.lowlink += deltaIndex;
+                node.search = receiverSearch.id;
+
+                for(int blockedSearch : node.blocked) {
+                    if(!allBlocked.contains(blockedSearch))
+                        allBlocked.add(0, blockedSearch);
+                }
+
+                receiverSearch.index = Math.max(receiverSearch.index, node.index);
                 tarjanStack.push(node);
             }
 
-            receiverSearch.index = node.index + 1;
+            for(Node node : tempControl)
+                controlStack.push(node);
+
+            receiverSearch.index += 1;
+
+            System.out.println("\n\n\n\n\nControl: ");
+            System.out.println(receiverSearch.controlStack.lastElement().id);
+
+            System.out.println("\n\n\n\n\nTarjan: ");
+            System.out.println(receiverSearch.tarjanStack.lastElement().id);
+
+            // Pegar as buscas que estão bloqueadas por nós que foram transferidos
+            allBlocked.removeIf(search -> search != receiverSearch.id && !blokingPath.contains(search));
+
+            if(!allBlocked.isEmpty()) {
+                blockeds.add(allBlocked);
+                blockers.add(senderId);
+            }
+
+            if(senderTarjanStack.empty())
+                emptySearches.add(senderId);
+            else
+                nonEmptySearches.add(senderId);
+
+            // synchronized(oldWaitingFor) {
+            //     oldWaitingFor.notify();
+            // }
+        }
+
+        // Atualizando o suspended
+        for(int i = 0; i < blockeds.size(); i++) {
+            ArrayList<Integer> blockedSearches = blockeds.get(i);
+
+            while(!blockedSearches.isEmpty()) {
+                int blockedHead = blockedSearches.get(0);
+                blockedSearches.remove(0);
+
+                int blocker = blockers.get(i);
+
+                if(suspended.containsKey(blockedHead)) {
+                    if(suspended.get(blockedHead) == blocker)
+                        suspended.put(blockedHead, blocker);
+                }
+            }
+        }
+
+        for(int emptySearch : emptySearches) {
+            unsuspend(emptySearch);
+
+            Node waitingNode = waitingNodes.get(emptySearch);
+            synchronized(waitingNode) {
+                waitingNode.notify();
+            }
+
+            suspended.remove(emptySearch);
+        }
+    
+        // Coloquei a busca por enquanto, deveria ser o nó
+        for(int nonEmptySearch : nonEmptySearches) {
+            Node waitingNode = waitingNodes.get(nonEmptySearch);
+            synchronized(waitingNode) {
+                waitingNode.notify();
+            }
+
+            suspended.put(nonEmptySearch, receiverSearch.id);
         }
     }
 
     public void execute(Node node) {
         synchronized(nodesToSearch) {
-            if(!this.shutdown && node.status == Node.Status.UNSEEN) {
+            if(node != null && node.status == Node.Status.UNSEEN) {
                 this.nodesToSearch.addLast(node);
                 this.nodesToSearch.notify();
             }
@@ -155,11 +258,6 @@ class Scheduler {
     }
     
     public void shutdown() {
-        synchronized(nodesToSearch) {
-            this.shutdown = true;
-            nodesToSearch.notifyAll();
-        }
-
         for(int i = 0; i < searches.length; i++) {
             try {
                 searches[i].join(); 
@@ -170,118 +268,190 @@ class Scheduler {
     }
 
     public Node getNewNode() {
-        synchronized(nodesToSearch){
-            while(nodesToSearch.isEmpty() && (!shutdown)) {
-                try { 
-                    nodesToSearch.wait(); 
-                } catch(InterruptedException ignored) {}
+        synchronized(nodesToSearch) {
+            if(nodesToSearch.isEmpty()) {
+                Node startNode = Node.getNotInSCC(nodes);
+
+                if(startNode == null)
+                    this.shutdown = true;
+
+                return startNode;
             }
 
-            if(nodesToSearch.isEmpty() && shutdown)
-                return null;  
-    
             return (Node) nodesToSearch.removeFirst();
         }
     }
     private class Search extends Thread {
-        public int waitingFor = -1;
+        public int id;
         public int index = 0;
-        public int searchId;
+        public Node waitingFor;
+        public Stack<Node> controlStack;
+        public Stack<Node> tarjanStack;
 
-        public Search(int searchId) {
-            this.searchId = searchId;
+        public Search(int id) {
+            this.id = id;
         }
 
         private void addNode(Node node) {
             node.index = this.index;
             node.lowlink = this.index;
             node.status = Node.Status.INPROGRESS;
-            node.search = this.searchId;
+            node.search = this.id;
 
             this.index++;
-            controlStacks.get(searchId).push(node);
-            tarjanStacks.get(searchId).push(node);
+            controlStacks.get(id).push(node);
+            tarjanStacks.get(id).push(node);
+        }
+
+        private boolean expandEdge(Node parent, Node child) {     
+            System.out.println("& " + parent.id + " -> " + child.id +  " : s" + this.id + "\n");
+
+            synchronized(child) {
+                if(child.status == Node.Status.UNSEEN) {
+                    addNode(child);
+                    
+                } else if(tarjanStack.contains(child)) {
+                    parent.updateLowLink(child.index);
+                    
+                } else if(child.status != Node.Status.COMPLETE) {
+                    try {
+                        this.waitingFor = child;
+                        child.blocked.add(this.id);
+                        
+                        if(Suspend(this, parent, child)) {
+                            System.out.println("Before suspend");
+                            child.wait();
+                            System.out.println("Free suspend");
+                            
+                            return true; 
+                        }
+                        
+                        this.waitingFor = null;
+                        child.blocked.remove(this.id);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+            
+            return false;
+        }
+
+        private void backtrack(Node currentNode) {
+            controlStack.pop();
+            
+            System.out.println("- " + currentNode.id + " : s" + this.id);
+
+            if(!controlStack.isEmpty())
+                controlStack.lastElement().updateLowLink(currentNode.lowlink);
+            
+            if(currentNode.lowlink == currentNode.index) {
+                Set<Integer> SCC = new HashSet<Integer>();
+                
+                Node vertex;
+
+                if(tarjanStack.isEmpty())
+                    return;
+                
+                do {
+                    vertex = tarjanStack.pop();
+                    System.out.println("+ " + vertex.id + " : s" + this.id);
+                    
+                    synchronized(vertex) {
+                        SCC.add(vertex.id);
+                        vertex.status = Node.Status.COMPLETE;
+
+                        if(vertex.blocked.size() > 0) {
+                            System.out.println(vertex.blocked);
+
+                            java.util.Iterator<Integer> blockedIterator = vertex.blocked.iterator();
+
+                            while(blockedIterator.hasNext()) {
+                                int blockedSearch = blockedIterator.next();
+                                unsuspend(blockedSearch);
+                                blockedIterator.remove();
+                            }
+                        
+                            // for(int blockedSearch : vertex.blocked) {
+                            //     if(blockedSearch != this.id) {
+                            //         vertex.blocked.remove((Integer) blockedSearch);
+                            //         unsuspend(blockedSearch);
+                            //     }
+                            // }
+
+                            vertex.notifyAll();
+                        }
+                    }
+                } while(vertex.id != currentNode.id);
+
+                SCCs.add(SCC);
+            }
         }
 
         public void run() {
-            Stack<Node> controlStack = controlStacks.get(searchId);
-            Stack<Node> tarjanStack = tarjanStacks.get(searchId);
+            this.controlStack = controlStacks.get(id);
+            this.tarjanStack = tarjanStacks.get(id);
 
-            while(true) {
+            while(!shutdown) {
+                System.out.println("-------------------- s" + id + "---------------");
+                
+                // Resetando atributos
+                tarjanStack.clear();
+                controlStack.clear();
+                this.index = 0;
+
                 Node startNode = getNewNode();
 
-                if(startNode == null)
-                    return;
+                if(startNode == null || startNode.status != Node.Status.UNSEEN) {
+                    System.out.println("Nó já visitado");
+                    continue;
+                }
 
                 addNode(startNode);
 
                 while(!controlStack.isEmpty()) {
                     Node node = controlStack.lastElement();
+                    
+                    Set<Integer> outNeighbours = adjList.getOutEdges(node.id);
+                    
+                    System.out.println("* " + node.id + " : s" + this.id);
+                    
+                    if(outNeighbours != null && !outNeighbours.isEmpty()) {
+                        int childId = outNeighbours.iterator().next();
+                        Node child = nodes.get(childId);
 
-                    synchronized(node) {
-                        Set<Integer> outNeighbours = adjList.getOutEdges(node.id);
+                        boolean wasSuspended = expandEdge(node, child);
 
-                        System.out.println("* " + node.id + " : " + this.searchId);
-                        
-                        if(outNeighbours != null && !outNeighbours.isEmpty()) {
-                            int childId = outNeighbours.iterator().next();
-                            adjList.removeOutEdge(node.id, childId);
-                            
-                            Node child = nodes.get(childId);
+                        if(!wasSuspended) {
+                            // adjList.removeOutEdge(node.id, child.index);
+                            outNeighbours.remove(child.id);
+                            // outNeighbours = adjList.getOutEdges(node.id);
 
-                            System.out.println("& " + childId + " : " + this.searchId);
-                            
-                            synchronized(child) {
-                                if(child.status == Node.Status.UNSEEN)
-                                    addNode(child);
-                                else if(tarjanStack.contains(child))
-                                node.updateLowLink(child.index);
-                                else if(child.status != Node.Status.COMPLETE) {
+                            // Adicionando nós para serem utilizados em outras buscas
+                            for(int newNodeId : outNeighbours) {
+                                if(newNodeId != childId) {
+                                    System.out.println("= " + node.id + " -> " + newNodeId + " : s" + this.id);
+                                    execute(nodes.get(newNodeId));
+                                }
+                            }
+
+                            System.out.println("");
+                        } else if(this.waitingFor != null) {
+                            Node newSuspendedNode = this.waitingFor;
+
+                            synchronized(newSuspendedNode) {
+                                if(this.waitingFor.id == newSuspendedNode.id) {
                                     try {
-                                        if(Suspend(this, node, child)) {
-                                            child.wait();
-
-                                            nodes.get(this.waitingFor).wait();
-
-                                            Unsuspend(this, node);
-                                        }
+                                        System.out.println("Suspended " + newSuspendedNode.id + " s" + this.id);
+                                        newSuspendedNode.wait();
                                     } catch (InterruptedException e) {
                                         e.printStackTrace();
                                     }
                                 }
                             }
-
-                            // Adicionando nós para serem utilizados em outras buscas
-                            for(int newNodeId : outNeighbours) {
-                                if(newNodeId != childId)
-                                    execute(nodes.get(newNodeId));
-                            }
-                        } else {
-                            controlStack.pop();
-                            
-                            System.out.println("- " + node.id + " : " + this.searchId);
-                            if(!controlStack.isEmpty())
-                                controlStack.lastElement().updateLowLink(node.lowlink);
-
-                            if(node.lowlink == node.index) {
-                                Set<Integer> SCC = new HashSet<Integer>();
-                                
-                                Node vertex;
-                                
-                                do {
-                                    vertex = tarjanStack.pop();
-
-                                    synchronized(vertex) {
-                                        SCC.add(vertex.id);
-                                        vertex.status = Node.Status.COMPLETE;
-                                        vertex.notifyAll();
-                                    }
-        
-                                } while(vertex.id != node.id);
-        
-                                SCCs.add(SCC);
-                            }
-                        }
+                        } 
+                    } else {
+                        backtrack(node);   
                     }
                 }
             }
