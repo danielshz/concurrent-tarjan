@@ -14,8 +14,8 @@ public class Node {
 	public int index;
 	public int lowlink;
 	public Status status;
-	public int search;
-	public ArrayList<Integer> blocked;
+	public Search search;
+	public ArrayList<Search> blocked;
 
 	public Node(int id, int index, int lowlink) {
 		this.id = id;
@@ -23,7 +23,7 @@ public class Node {
 		this.lowlink = lowlink;
 		this.status = Status.UNSEEN;
 		this.blocked = new ArrayList<>();
-		this.search = -1;
+		this.search = null;
 	}
 
 	public synchronized void updateLowLink(int update) {
