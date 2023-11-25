@@ -49,6 +49,8 @@ public class Search extends Thread {
     private boolean expandEdge(Node parent, Node child) {     
         System.out.println("& " + parent.id + " -> " + child.id +  " : s" + this.id + "\n");
 
+        boolean notCompleted = false;
+
         synchronized(child) {
             if(child.status == Node.Status.UNSEEN) {
                 addNode(child);
@@ -57,24 +59,32 @@ public class Search extends Thread {
                 parent.updateLowLink(child.index);
                 
             } else if(child.status != Node.Status.COMPLETE) {
+                this.waitingFor = child;
+                child.blocked.add(this);
+
+                notCompleted = true;                  
+            }
+        }
+
+        if(notCompleted) {
+            if(suspended.suspend(this, parent, child)) {
+                System.out.println("Suspend s" + this.id);
+
                 try {
-                    this.waitingFor = child;
-                    child.blocked.add(this);
-                    
-                    if(suspended.suspend(this, parent, child)) {
-                        System.out.println("Before suspend");
+                    synchronized(child) {
                         child.wait();
-                        System.out.println("Free suspend");
-                        
-                        return true; 
                     }
-                    
-                    child.blocked.remove(this);
-                    this.waitingFor = null;
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
-            }
+
+                System.out.println("Free s " + this.id);
+                
+                return true; 
+            } else {
+                child.blocked.remove(this);
+                this.waitingFor = null;
+            }     
         }
         
         return false;
@@ -113,7 +123,7 @@ public class Search extends Thread {
                 
                         System.out.print("Blocked: " + blockedString);
 
-                        ArrayList<Search> blockedVertex = (ArrayList) vertex.blocked.clone();
+                        ArrayList<Search> blockedVertex = new ArrayList<>(vertex.blocked);
 
                         for(Search blockedSearch : blockedVertex) {
                             suspended.unsuspend(blockedSearch);

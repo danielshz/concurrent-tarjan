@@ -57,11 +57,8 @@ class Scheduler {
     public void execute() {
         Node startNode = Node.getNotInSCC(nodes, nextNode);
 
-        synchronized(nodesToSearch) {
-            if(startNode != null && startNode.status == Node.Status.UNSEEN) {
-                this.nodesToSearch.addLast(startNode);
-                this.nodesToSearch.notify();
-            }
+        if(startNode != null && startNode.status == Node.Status.UNSEEN) {
+            queueNewNode(startNode);
         }
     }
     

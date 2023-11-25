@@ -189,6 +189,9 @@ public class Suspended {
             unsuspend(emptySearch);
 
             Node waitingNode = waitingNodes.get(emptySearch);
+
+            System.out.println("(Empty) Liberando " + waitingNode.id + " : s" + emptySearch.id);
+
             synchronized(waitingNode) {
                 waitingNode.notify();
             }
@@ -198,6 +201,9 @@ public class Suspended {
     
         for(Search nonEmptySearch : nonEmptySearches) {
             Node waitingNode = waitingNodes.get(nonEmptySearch);
+
+            System.out.println("(Non-Empty) Liberando " + waitingNode.id + " : s" + nonEmptySearch.id);
+
             synchronized(waitingNode) {
                 waitingNode.notify();
             }
