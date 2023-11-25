@@ -9,6 +9,7 @@ class Scheduler {
 
     public final Search[] searches;
     private Suspended suspended;
+    private Integer nextNode = 0;
 
 	private AdjacencyList adjList;
 	private ConcurrentHashMap<Integer, Node> nodes;
@@ -53,10 +54,12 @@ class Scheduler {
         return this.nodesToSearch;
     }
 
-    public void execute(Node node) {
+    public void execute() {
+        Node startNode = Node.getNotInSCC(nodes, nextNode);
+
         synchronized(nodesToSearch) {
-            if(node != null && node.status == Node.Status.UNSEEN) {
-                this.nodesToSearch.addLast(node);
+            if(startNode != null && startNode.status == Node.Status.UNSEEN) {
+                this.nodesToSearch.addLast(startNode);
                 this.nodesToSearch.notify();
             }
         }
@@ -75,9 +78,11 @@ class Scheduler {
     }
 
     public Node getNewNode() {
+        Node startNode;
+
         synchronized(nodesToSearch) {
             if(nodesToSearch.isEmpty()) {
-                Node startNode = Node.getNotInSCC(nodes);
+                startNode = Node.getNotInSCC(nodes, nextNode);
 
                 if(startNode == null)
                     this.shutdown = true;
@@ -85,7 +90,19 @@ class Scheduler {
                 return startNode;
             }
 
-            return (Node) nodesToSearch.removeFirst();
+            startNode = nodesToSearch.removeFirst();
+
+            while(startNode.status != Node.Status.UNSEEN && !nodesToSearch.isEmpty())
+                startNode = nodesToSearch.removeFirst();
+
+            return startNode;
         }
     }
+
+    public void queueNewNode(Node node) {
+        synchronized(nodesToSearch) {
+            this.nodesToSearch.addLast(node);
+            this.nodesToSearch.notify();
+        }
+    }	
 }

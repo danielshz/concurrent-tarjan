@@ -39,10 +39,18 @@ public class Node {
         return nodeMap;
     }
 
-	public static Node getNotInSCC(Map<Integer, Node> nodes) {
-		for (Node node : nodes.values()) {
+	public synchronized static Node getNotInSCC(Map<Integer, Node> nodes, Integer nextNode) {
+		if(nextNode >= nodes.size())
+			return null;
+
+		Node node = nodes.get(nextNode);
+		
+		while(nextNode < nodes.size()) {
 			if(node.status == Status.UNSEEN)
 				return node;
+			
+			nextNode++;
+			node = nodes.get(nextNode);
 		}
 
 		return null;

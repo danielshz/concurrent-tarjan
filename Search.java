@@ -69,8 +69,8 @@ public class Search extends Thread {
                         return true; 
                     }
                     
+                    child.blocked.remove(this);
                     this.waitingFor = null;
-                    child.blocked.remove(this.id);
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
@@ -113,12 +113,12 @@ public class Search extends Thread {
                 
                         System.out.print("Blocked: " + blockedString);
 
-                        Iterator<Search> blockedIterator = vertex.blocked.iterator();
+                        ArrayList<Search> blockedVertex = (ArrayList) vertex.blocked.clone();
 
-                        while(blockedIterator.hasNext()) {
-                            Search blockedSearch = blockedIterator.next();
+                        for(Search blockedSearch : blockedVertex) {
                             suspended.unsuspend(blockedSearch);
-                            blockedIterator.remove();
+                            blockedSearch.waitingFor = null;
+                            vertex.blocked.remove(blockedSearch);
                         }
 
                         vertex.notifyAll();
@@ -141,10 +141,8 @@ public class Search extends Thread {
 
             Node startNode = scheduler.getNewNode();
 
-            if(startNode == null || startNode.status != Node.Status.UNSEEN) {
-                System.out.println("Nó já visitado");
+            if(startNode == null || startNode.status != Node.Status.UNSEEN)
                 continue;
-            }
 
             addNode(startNode);
 
@@ -170,7 +168,7 @@ public class Search extends Thread {
                         for(int newNodeId : outNeighbours) {
                             if(newNodeId != childId) {
                                 System.out.println("= " + node.id + " -> " + newNodeId + " : s" + this.id);
-                                scheduler.execute(nodes.get(newNodeId));
+                                scheduler.queueNewNode(nodes.get(newNodeId));
                             }
                         }
 

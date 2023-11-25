@@ -10,7 +10,7 @@ public class Suspended {
     }
 
     public synchronized boolean suspend(Search search, Node node, Node child) {
-        ArrayList<Search> blokingCycle = blokingCycle(search, child.search);
+        ArrayList<Search> blokingCycle = blokingCycle(child.search, search);
         
         if(blokingCycle == null) {
             suspended.put(search, child.search);
@@ -27,60 +27,64 @@ public class Suspended {
         System.out.print("Ciclo: " + ciclo);
         
         System.out.println("Com ciclo ::: s" + search.id);
-        transferNodes(search, blokingCycle, child);
+        transferNodes(search, blokingCycle);
           
         return false;
     }
 
     public synchronized void unsuspend(Search search) {
         suspended.remove(search);
-        search.waitingFor = null;
     }
 
     private synchronized ArrayList<Search> blokingCycle(Search start, Search target) {
-        Search current = target;
+        Search current = start;
 
-        System.out.println(":::::::::::::: w s" + target.id + " : b s" + start.id);
+        System.out.println(":::::::::::::: b s" + target.id + " : w s" + start.id);
+        System.out.println(":::::::::::::: b n" + target.controlStack.lastElement().id + " : w n" + target.waitingFor.id);
         
         ArrayList<Search> path = new ArrayList<>();
         path.add(current);
 
-        while(suspended.containsKey(current) && current != start) {
+        while(suspended.containsKey(current) && current != target) {
             current = suspended.get(current);
 
-            if(current != start)
+            if(current != target)
                 path.add(current);
         }
 
-        return current != start ? null : new ArrayList<Search>(path.reversed());
+        // return current != target ? null : new ArrayList<Search>(path.reversed());
+        return current != target ? null : path;
     }
 
-    private synchronized Node getTransferNodes(Node senderWaitingIn, Stack<Node> senderTarjanStack, Stack<Node> senderControlStack, ArrayList<Node> tempTarjan, ArrayList<Node> tempControl) {
-        Node node = senderTarjanStack.pop();
+    private synchronized Node getTransferNodes(Node senderWaitingIn, Search senderSearch, ArrayList<Node> tempTarjan, ArrayList<Node> tempControl) {
+        Stack<Node> tarjanStack = senderSearch.tarjanStack;
+        Stack<Node> controlStack = senderSearch.controlStack;
+
+        Node node = tarjanStack.pop();
         int lowestLowlink = node.lowlink;
 
         tempTarjan.add(node);
 
         while(node.id != senderWaitingIn.id || lowestLowlink < node.index) {
-            node = senderTarjanStack.pop();
+            node = tarjanStack.pop();
             tempTarjan.add(node);
             lowestLowlink = Math.min(lowestLowlink, node.lowlink);
         }
 
         Node oldestNode = node;
 
-        node = senderControlStack.pop();
+        node = controlStack.pop();
         tempControl.add(node);
 
         while(node.id != oldestNode.id) {
-            node = senderControlStack.pop();
+            node = controlStack.pop();
             tempControl.add(node);
         }
 
         return oldestNode;
     }
 
-    private synchronized void transferNodes(Search receiverSearch, ArrayList<Search> blokingPath, Node child) {
+    private synchronized void transferNodes(Search receiverSearch, ArrayList<Search> blokingPath) {
         Stack<Node> tarjanStack = receiverSearch.tarjanStack;
         Stack<Node> controlStack = receiverSearch.controlStack;
 
@@ -92,24 +96,31 @@ public class Suspended {
         ArrayList<Search> emptySearches = new ArrayList<>();
         ArrayList<Search> nonEmptySearches = new ArrayList<>();
 
-        Node n1 = child;
+        Node n1 = receiverSearch.waitingFor;
 
         for(Search senderSearch : blokingPath) {
-            Stack<Node> senderTarjanStack = senderSearch.tarjanStack;
-            Stack<Node> senderControlStack = senderSearch.controlStack;
             ArrayList<Node> tempTarjan = new ArrayList<>();
             ArrayList<Node> tempControl = new ArrayList<>();
 
-            Node newWaitingFor = getTransferNodes(n1, senderTarjanStack, senderControlStack, tempTarjan, tempControl);
+            System.out.println(senderSearch.tarjanStack);
+            System.out.println(senderSearch.controlStack);
+
+            System.out.println("\n\n\n\n\nSender Control: ");
+            System.out.println(senderSearch.controlStack.lastElement().id);
+
+            System.out.println("\n\n\n\n\nSender Tarjan: ");
+            System.out.println(senderSearch.tarjanStack.lastElement().id);
+
+            Node newWaitingFor = getTransferNodes(n1, senderSearch, tempTarjan, tempControl);
 
             // Atualizando atributos
             Node oldWaitingFor = senderSearch.waitingFor;
             oldWaitingFor.blocked.remove(senderSearch);
-
-            waitingNodes.put(senderSearch, oldWaitingFor);
-
+            
             senderSearch.waitingFor = newWaitingFor;
             newWaitingFor.blocked.add(senderSearch);
+            
+            waitingNodes.put(senderSearch, oldWaitingFor);
 
             n1 = oldWaitingFor;
 
@@ -137,10 +148,10 @@ public class Suspended {
 
             receiverSearch.index += 1;
 
-            System.out.println("\n\n\n\n\nControl: ");
+            System.out.println("\n\n\n\n\nReceiver Control: ");
             System.out.println(receiverSearch.controlStack.lastElement().id);
 
-            System.out.println("\n\n\n\n\nTarjan: ");
+            System.out.println("\n\n\n\n\nReceiver Tarjan: ");
             System.out.println(receiverSearch.tarjanStack.lastElement().id);
 
             // Pegar as buscas que estão bloqueadas por nós que foram transferidos
@@ -151,7 +162,7 @@ public class Suspended {
                 blockers.add(senderSearch);
             }
 
-            if(senderTarjanStack.empty())
+            if(senderSearch.tarjanStack.empty())
                 emptySearches.add(senderSearch);
             else
                 nonEmptySearches.add(senderSearch);
@@ -185,7 +196,6 @@ public class Suspended {
             suspended.remove(emptySearch);
         }
     
-        // Coloquei a busca por enquanto, deveria ser o nó
         for(Search nonEmptySearch : nonEmptySearches) {
             Node waitingNode = waitingNodes.get(nonEmptySearch);
             synchronized(waitingNode) {

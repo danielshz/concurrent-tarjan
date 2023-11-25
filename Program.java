@@ -80,7 +80,7 @@ public class Program {
 		long begin = System.nanoTime();
 
 		// Seleção do nó inicial da busca em profundidade
-		Node startNode = Node.getNotInSCC(nodes);
+		Node startNode = Node.getNotInSCC(nodes, 0);
 		
 		do {
 			ArrayList<Set<Integer>> result = tarjan.SequentialTarjan(startNode);
@@ -97,7 +97,7 @@ public class Program {
 
 			System.out.println("");
 
-			startNode = Node.getNotInSCC(nodes);
+			startNode = Node.getNotInSCC(nodes, 0);
 		} while(startNode != null);
 		
 		long end = System.nanoTime();
@@ -113,8 +113,7 @@ public class Program {
 		long begin = System.nanoTime();
 
 		// Seleção do nó inicial da busca em profundidade
-		Node startNode = Node.getNotInSCC(nodes);
-		scheduler.execute(startNode);
+		scheduler.execute();
 
 		scheduler.shutdown();
 		
