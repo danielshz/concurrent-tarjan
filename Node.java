@@ -26,7 +26,7 @@ public class Node {
 		this.search = null;
 	}
 
-	public synchronized void updateLowLink(int update) {
+	public void updateLowLink(int update) {
 		this.lowlink = Math.min(this.lowlink, update);
 	}
 
@@ -39,7 +39,7 @@ public class Node {
         return nodeMap;
     }
 
-	public synchronized static Node getNotInSCC(Map<Integer, Node> nodes, Integer nextNode) {
+	public static Node getNotInSCC(Map<Integer, Node> nodes, Integer nextNode) {
 		if(nextNode >= nodes.size())
 			return null;
 

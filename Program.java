@@ -45,15 +45,15 @@ public class Program {
 			n++;
 		}
 
-		System.out.println("O maior tamanho foi na " + maiorPos + "º busca e tem " + maior + " vertices");
-		System.out.println("Tempo em segundos: " + ((fim - ini) * Math.pow(10, -9)));
+		//System.out.println("O maior tamanho foi na " + maiorPos + "º busca e tem " + maior + " vertices");
+		//System.out.println("Tempo em segundos: " + ((fim - ini) * Math.pow(10, -9)));
 	}
 	public static void main(String[] args) {
 		String path = "";
 		int nThreads = 0;
 
 		if(args.length != 2) {
-			System.out.println("Argumentos invalidos! Digite <nome do arquivo> <numero de threads>");
+			//System.out.println("Argumentos invalidos! Digite <nome do arquivo> <numero de threads>");
 			System.exit(0);
 		} else {
 			path = args[0];
@@ -89,20 +89,20 @@ public class Program {
 
 			for(Set<Integer> SCC : SCCs) {
 				for(int element : SCC) {
-					System.out.print("" + element + " ");
+					//System.out.print("" + element + " ");
 				}
 	
-				System.out.println("");
+				//System.out.println("");
 			}
 
-			System.out.println("");
+			//System.out.println("");
 
 			startNode = Node.getNotInSCC(nodes, 0);
 		} while(startNode != null);
 		
 		long end = System.nanoTime();
 
-		System.out.println("Tempo em segundos: " + ((end - begin) * Math.pow(10, -9)));
+		//System.out.println("Tempo em segundos: " + ((end - begin) * Math.pow(10, -9)));
 	}
 
 	public static void concurrentTarjan(AdjacencyList graph, int nThreads) {
@@ -114,7 +114,6 @@ public class Program {
 
 		// Seleção do nó inicial da busca em profundidade
 		scheduler.execute();
-
 		scheduler.shutdown();
 		
 		System.out.println();
@@ -214,7 +213,7 @@ public class Program {
 			if(!visited[v]) {
 				visited[v] = true;
 				tam++;
-				//System.out.println(v);
+				////System.out.println(v);
 				Set<Integer> outNeighbours = G.getOutEdges(v);
 
 				if(outNeighbours != null) {

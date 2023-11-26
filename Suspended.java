@@ -9,7 +9,7 @@ public class Suspended {
         this.suspended = new HashMap<>();
     }
 
-    public synchronized boolean suspend(Search search, Node node, Node child) {
+    public synchronized boolean suspend(Search search, Node child) {
         ArrayList<Search> blokingCycle = blokingCycle(child.search, search);
         
         if(blokingCycle == null) {
@@ -24,7 +24,7 @@ public class Suspended {
             ciclo += "s" + search2.id + " -> ";    
         }
 
-        System.out.print("Ciclo: " + ciclo);
+        System.out.println("Ciclo: " + ciclo);
         
         System.out.println("Com ciclo ::: s" + search.id);
         transferNodes(search, blokingCycle);
@@ -34,13 +34,14 @@ public class Suspended {
 
     public synchronized void unsuspend(Search search) {
         suspended.remove(search);
+        search.waitingFor = null;
     }
 
     private synchronized ArrayList<Search> blokingCycle(Search start, Search target) {
         Search current = start;
 
         System.out.println(":::::::::::::: b s" + target.id + " : w s" + start.id);
-        System.out.println(":::::::::::::: b n" + target.controlStack.lastElement().id + " : w n" + target.waitingFor.id);
+        System.out.println(":::::::::::::: b n" + target.controlStack.peek().id + " : w n" + target.waitingFor.id);
         
         ArrayList<Search> path = new ArrayList<>();
         path.add(current);
@@ -52,23 +53,26 @@ public class Suspended {
                 path.add(current);
         }
 
-        // return current != target ? null : new ArrayList<Search>(path.reversed());
         return current != target ? null : path;
     }
 
-    private synchronized Node getTransferNodes(Node senderWaitingIn, Search senderSearch, ArrayList<Node> tempTarjan, ArrayList<Node> tempControl) {
+    private synchronized Node getTransferNodes(Node blockerSearch, Search senderSearch, ArrayList<Node> tempTarjan, ArrayList<Node> tempControl) {
         Stack<Node> tarjanStack = senderSearch.tarjanStack;
         Stack<Node> controlStack = senderSearch.controlStack;
-
+            
         Node node = tarjanStack.pop();
         int lowestLowlink = node.lowlink;
-
+        boolean reachedBlocker = node == blockerSearch;
+        
         tempTarjan.add(node);
 
-        while(node.id != senderWaitingIn.id || lowestLowlink < node.index) {
+        while(!reachedBlocker || lowestLowlink < node.index) {
             node = tarjanStack.pop();
-            tempTarjan.add(node);
+            tempTarjan.add(0, node);
             lowestLowlink = Math.min(lowestLowlink, node.lowlink);
+
+            if(node == blockerSearch)
+                reachedBlocker = true;
         }
 
         Node oldestNode = node;
@@ -78,7 +82,7 @@ public class Suspended {
 
         while(node.id != oldestNode.id) {
             node = controlStack.pop();
-            tempControl.add(node);
+            tempControl.add(0, node);
         }
 
         return oldestNode;
@@ -96,7 +100,7 @@ public class Suspended {
         ArrayList<Search> emptySearches = new ArrayList<>();
         ArrayList<Search> nonEmptySearches = new ArrayList<>();
 
-        Node n1 = receiverSearch.waitingFor;
+        Node blockerNode = receiverSearch.waitingFor;
 
         for(Search senderSearch : blokingPath) {
             ArrayList<Node> tempTarjan = new ArrayList<>();
@@ -105,24 +109,25 @@ public class Suspended {
             System.out.println(senderSearch.tarjanStack);
             System.out.println(senderSearch.controlStack);
 
-            System.out.println("\n\n\n\n\nSender Control: ");
-            System.out.println(senderSearch.controlStack.lastElement().id);
+            System.out.println("\n\nSender Control: " + senderSearch.controlStack.peek().id);
+            System.out.println("\n\nSender Tarjan: " + senderSearch.tarjanStack.peek().id);
 
-            System.out.println("\n\n\n\n\nSender Tarjan: ");
-            System.out.println(senderSearch.tarjanStack.lastElement().id);
-
-            Node newWaitingFor = getTransferNodes(n1, senderSearch, tempTarjan, tempControl);
+            Node newWaitingFor = getTransferNodes(blockerNode, senderSearch, tempTarjan, tempControl);
 
             // Atualizando atributos
             Node oldWaitingFor = senderSearch.waitingFor;
             oldWaitingFor.blocked.remove(senderSearch);
-            
-            senderSearch.waitingFor = newWaitingFor;
-            newWaitingFor.blocked.add(senderSearch);
-            
-            waitingNodes.put(senderSearch, oldWaitingFor);
 
-            n1 = oldWaitingFor;
+            senderSearch.waitingFor = newWaitingFor;
+            
+            if(!senderSearch.tarjanStack.empty())
+                newWaitingFor.blocked.add(senderSearch);
+            else
+                senderSearch.waitingFor = null;
+            
+            blockerNode = oldWaitingFor;
+
+            waitingNodes.put(senderSearch, oldWaitingFor);
 
             // Transferindo nós
             int deltaIndex = receiverSearch.index - newWaitingFor.index;
@@ -148,14 +153,11 @@ public class Suspended {
 
             receiverSearch.index += 1;
 
-            System.out.println("\n\n\n\n\nReceiver Control: ");
-            System.out.println(receiverSearch.controlStack.lastElement().id);
-
-            System.out.println("\n\n\n\n\nReceiver Tarjan: ");
-            System.out.println(receiverSearch.tarjanStack.lastElement().id);
+            System.out.println("\n\nReceiver Control: " + receiverSearch.controlStack.peek().id);
+            System.out.println("\n\nReceiver Tarjan: " + receiverSearch.tarjanStack.peek().id);
 
             // Pegar as buscas que estão bloqueadas por nós que foram transferidos
-            allBlocked.removeIf(search -> search != receiverSearch && !blokingPath.contains(search));
+            allBlocked.removeIf(search -> search == receiverSearch || blokingPath.contains(search));
 
             if(!allBlocked.isEmpty()) {
                 blockeds.add(allBlocked);
@@ -171,16 +173,15 @@ public class Suspended {
         // Atualizando o suspended
         for(int i = 0; i < blockeds.size(); i++) {
             ArrayList<Search> blockedSearches = blockeds.get(i);
+            Search blocker = blockers.get(i);
 
             while(!blockedSearches.isEmpty()) {
                 Search blockedHead = blockedSearches.get(0);
                 blockedSearches.remove(0);
 
-                Search blocker = blockers.get(i);
-
                 if(suspended.containsKey(blockedHead)) {
                     if(suspended.get(blockedHead) == blocker)
-                        suspended.put(blockedHead, blocker);
+                        suspended.put(blockedHead, receiverSearch);
                 }
             }
         }
@@ -190,22 +191,18 @@ public class Suspended {
 
             Node waitingNode = waitingNodes.get(emptySearch);
 
-            System.out.println("(Empty) Liberando " + waitingNode.id + " : s" + emptySearch.id);
-
-            synchronized(waitingNode) {
-                waitingNode.notify();
+            synchronized(emptySearch) {
+                System.out.println("(Empty) Liberando " + waitingNode.id + " : s" + emptySearch.id);
+                emptySearch.notifyAll();
             }
-
-            suspended.remove(emptySearch);
         }
     
         for(Search nonEmptySearch : nonEmptySearches) {
             Node waitingNode = waitingNodes.get(nonEmptySearch);
-
-            System.out.println("(Non-Empty) Liberando " + waitingNode.id + " : s" + nonEmptySearch.id);
-
-            synchronized(waitingNode) {
-                waitingNode.notify();
+            
+            synchronized(nonEmptySearch) {
+                System.out.println("(Non-Empty) Liberando " + waitingNode.id + " : s" + nonEmptySearch.id);
+                nonEmptySearch.notifyAll();
             }
 
             suspended.put(nonEmptySearch, receiverSearch);

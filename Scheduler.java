@@ -81,8 +81,10 @@ class Scheduler {
             if(nodesToSearch.isEmpty()) {
                 startNode = Node.getNotInSCC(nodes, nextNode);
 
-                if(startNode == null)
+                if(startNode == null) {
                     this.shutdown = true;
+                    System.out.println("SHUTDOWN");
+                }
 
                 return startNode;
             }
@@ -96,10 +98,14 @@ class Scheduler {
         }
     }
 
-    public void queueNewNode(Node node) {
+    public boolean queueNewNode(Node node) {
         synchronized(nodesToSearch) {
-            this.nodesToSearch.addLast(node);
-            this.nodesToSearch.notify();
+            if(nodesToSearch.size() < searches.length) {
+                this.nodesToSearch.addLast(node);
+                return true;
+            }
+
+            return false;
         }
     }	
 }
