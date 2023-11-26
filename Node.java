@@ -30,6 +30,14 @@ public class Node {
 		this.lowlink = Math.min(this.lowlink, update);
 	}
 
+	public synchronized int tranfer(int deltaIndex, Search newSearch) {
+		this.index += deltaIndex;
+		this.lowlink += deltaIndex;
+		this.search = newSearch;
+
+		return this.index;
+	}
+
     public static HashMap<Integer, Node> getNodeMap(Set<Integer> nodes) {
         HashMap<Integer, Node> nodeMap = new HashMap<>();
 

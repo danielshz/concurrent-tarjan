@@ -29,12 +29,12 @@ class Scheduler {
         this.nodesToSearch = new LinkedList<>();
 
         for(int i = 0; i < nThreads; i++) {
-            this.searches[i] = new Search(i, this.suspended, this.adjList, this, this.nodes);
+            this.searches[i] = new Search(i, this.suspended, this);
             this.searches[i].start();
         } 
     }
 
-    public boolean getShutDown() {
+    public boolean getShutdown() {
         return this.shutdown;
     }
 
@@ -107,5 +107,50 @@ class Scheduler {
 
             return false;
         }
-    }	
+    }
+    
+    public Node getUnexploredChild(Node node) {
+        synchronized(adjList) {
+            Set<Integer> outNeighbours = adjList.getOutEdges(node.id);
+            
+            if(outNeighbours != null && !outNeighbours.isEmpty()) {
+                for(int childId : outNeighbours) {
+                    Node child = nodes.get(childId);
+                    return child;
+                }
+            }
+    
+            return null;
+        }
+    }
+
+    public void removeEdge(Node node, Node child) {
+        synchronized(adjList) {
+            Set<Integer> outNeighbours = adjList.getOutEdges(node.id);
+    
+            if(outNeighbours != null && !outNeighbours.isEmpty()) {
+                outNeighbours.remove(child.id);
+            }
+        }
+    }
+
+    public void queueChildren(Node node) {
+        Set<Integer> outNeighbours = adjList.getOutEdges(node.id);
+
+        synchronized(outNeighbours) {
+            if(outNeighbours != null && !outNeighbours.isEmpty()) {
+                for(int childId : outNeighbours) {
+                    Node child = nodes.get(childId);
+
+                    boolean added = false;
+
+                    if(child.status == Node.Status.UNSEEN)
+                        added = queueNewNode(child);
+
+                    //if(added)
+                        //System.out.println("= " + node.id + " -> " + child.id + " : s" + node.search.id);
+                }
+            }
+        }
+    }
 }
