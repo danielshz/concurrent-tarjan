@@ -62,7 +62,11 @@ public class AdjacencyList {
 	}
 
     public Set<Integer> getVerticesId() {
-        return this.out.keySet();
+		HashSet<Integer> vertices = new HashSet<>(this.out.keySet());
+
+		vertices.addAll(this.in.keySet());
+
+        return vertices;
     }
 
 	public HashSet<Integer> getInEdges(int v) {

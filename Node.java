@@ -52,9 +52,11 @@ public class Node {
 			return null;
 
 		Node node = nodes.get(nextNode);
+
+		long maxId = nodes.keySet().stream().max(Integer::compare).get();
 		
-		while(nextNode < nodes.size()) {
-			if(node.status == Status.UNSEEN)
+		while(nextNode < maxId) {
+			if(node != null && node.status == Status.UNSEEN)
 				return node;
 			
 			nextNode++;

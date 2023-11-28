@@ -41,7 +41,7 @@ public class Search extends Thread {
         tarjanStack.push(node);
     }
 
-    public Node getTransferNodes(Node blockerNode, ArrayList<Node> tempTarjan, ArrayList<Node> tempControl) {  
+    public synchronized Node getTransferNodes(Node blockerNode, ArrayList<Node> tempTarjan, ArrayList<Node> tempControl) {  
         Node node = tarjanStack.pop();
         int lowestLowlink = node.lowlink;
         boolean reachedBlocker = node == blockerNode;
@@ -80,12 +80,16 @@ public class Search extends Thread {
         return oldWaitingFor;
     }
 
-    public ArrayList<Search> transferNodes(ArrayList<Node> senderTarjan, ArrayList<Node> senderControl) {
+    public synchronized ArrayList<Search> transferNodes(ArrayList<Node> senderTarjan, ArrayList<Node> senderControl) {
         int deltaIndex = this.index - controlStack.get(0).index;
         ArrayList<Search> allBlocked = new ArrayList<>();
 
         for(Node node : senderTarjan) {
-            int newNodeIndex = node.tranfer(deltaIndex, this);
+            int newNodeIndex;
+
+            synchronized(node) {
+                newNodeIndex = node.tranfer(deltaIndex, this);
+            }
 
             for(Search blockedSearch : node.blocked) {
                 if(!allBlocked.contains(blockedSearch))
@@ -104,7 +108,7 @@ public class Search extends Thread {
         return allBlocked;
     }
 
-    private boolean expandEdge(Node parent, Node child) {     
+    private synchronized boolean expandEdge(Node parent, Node child) {
         //System.out.println("& " + parent.id + " -> " + child.id +  " : s" + this.id + "\n");
 
         boolean wasSuspended = false;
@@ -133,7 +137,7 @@ public class Search extends Thread {
             try {
                 synchronized(this) {
                     if(this.waitingFor == child) {
-                        //System.out.println("Suspend s" + this.id);
+                        System.out.println("Suspend s" + this.id);
                         this.wait();
                     }
                 }
@@ -141,13 +145,13 @@ public class Search extends Thread {
                 e.printStackTrace();
             }
 
-            //System.out.println("Free s" + this.id);
+            System.out.println("Free s" + this.id);
         }
 
         return wasSuspended;
     }
 
-    private void backtrack(Node currentNode) {
+    private synchronized void backtrack(Node currentNode) {
         controlStack.pop();
         
         //System.out.println("- " + currentNode.id + " : s" + this.id);
@@ -182,8 +186,8 @@ public class Search extends Thread {
 
             for(Search blockedSearch : searchesToUnblock) {
                 synchronized(blockedSearch) {
-                    if(blockedSearch.waitingFor != null) {
-                        //System.out.println("Unblock: s" + blockedSearch.id);
+                    if(blockedSearch.waitingFor != null && SCC.contains(blockedSearch.waitingFor.id)) {
+                        System.out.println("Unblock: s" + blockedSearch.id);
                         suspended.unsuspend(blockedSearch);
                         blockedSearch.waitingFor = null;
                         blockedSearch.notifyAll();
@@ -191,15 +195,15 @@ public class Search extends Thread {
                 }
             }
 
-            //System.out.println("Finish SCC");
+            System.out.println("Finish SCC");
 
             SCCs.add(SCC);
         }
     }
 
-    public void run() {
+    public synchronized void run() {
         while(!scheduler.shutdown) {
-            //System.out.println("START SEARCH s" + id);
+            System.out.println("START SEARCH s" + id);
             
             // Resetando atributos
             tarjanStack.clear();
@@ -218,14 +222,13 @@ public class Search extends Thread {
             }
 
             while(!controlStack.isEmpty()) {
-                System.out.println(".");
+                System.out.println("'");
 
                 Node node = controlStack.peek();
                 Node child = scheduler.getUnexploredChild(node);
                 
-                //System.out.println("* " + node.id + " : s" + this.id);
-                
                 if(child != null) {
+                    //System.out.println("* " + node.id + " : s" + this.id);
                     boolean wasSuspended = expandEdge(node, child);
 
                     if(!wasSuspended) {
@@ -233,25 +236,13 @@ public class Search extends Thread {
                         scheduler.removeEdge(node, child);
                         // Adicionando nós para serem utilizados em outras buscas
                         scheduler.queueChildren(node);
-
-                    } else if(wasSuspended && this.waitingFor != null) {
-                        synchronized(this) {
-                            if(this.waitingFor != null) {
-                                try {
-                                    //System.out.println("New suspended " + this.waitingFor.id + " s" + this.id);
-                                    this.wait();
-                                } catch (InterruptedException e) {
-                                    e.printStackTrace();
-                                }
-                            }
-                        }
-                    } 
+                    }
                 } else {
                     backtrack(node);   
                 }
             }
         }
 
-        //System.out.println("FIM s" + this.id);
+        System.out.println("FIM s" + this.id);
     }
 }

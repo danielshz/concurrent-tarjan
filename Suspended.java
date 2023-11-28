@@ -8,13 +8,16 @@ public class Suspended {
         this.suspended = new HashMap<>();
     }
 
-    public synchronized boolean suspend(Search search, Node child) {
-        ArrayList<Search> blokingCycle = blokingCycle(child.search, search);
-        
-        if(blokingCycle == null) {
-            suspended.put(search, child.search);
-            System.out.println("Sem ciclo ::: s" + search.id);
-            return true;
+    public boolean suspend(Search search, Node child) {
+        ArrayList<Search> blokingCycle;
+        synchronized(suspended) {
+            blokingCycle = blokingCycle(child.search, search);
+            
+            if(blokingCycle == null) {
+                suspended.put(search, child.search);
+                System.out.println("Sem ciclo ::: s" + search.id);
+                return true;
+            }
         }
 
         String ciclo = "";
@@ -31,11 +34,13 @@ public class Suspended {
         return false;
     }
 
-    public synchronized void unsuspend(Search search) {
-        suspended.remove(search);
+    public void unsuspend(Search search) {
+        synchronized(suspended) {
+            suspended.remove(search);
+        }
     }
 
-    private synchronized ArrayList<Search> blokingCycle(Search start, Search target) {
+    private ArrayList<Search> blokingCycle(Search start, Search target) {
         Search current = start;
 
         System.out.println(":::::::::::::: b s" + target.id + " : w s" + start.id);
@@ -54,7 +59,7 @@ public class Suspended {
         return current != target ? null : path;
     }
 
-    private synchronized void transfer(Search receiverSearch, ArrayList<Search> blokingPath) {
+    private void transfer(Search receiverSearch, ArrayList<Search> blokingPath) {
         ArrayList<ArrayList<Search>> blockeds = new ArrayList<>();
         ArrayList<Search> blockers = new ArrayList<>();
 
@@ -106,22 +111,25 @@ public class Suspended {
             }
         }
 
-        // Liberando as buscas com pilhas vazias
-        for(Search emptySearch : emptySearches) {
-            synchronized(emptySearch) {
-                System.out.println("(Empty) Liberando : s" + emptySearch.id);
-                unsuspend(emptySearch);
-                emptySearch.notifyAll();
+        synchronized(suspended) {
+            // Liberando as buscas com pilhas vazias
+            for(Search emptySearch : emptySearches) {
+                synchronized(emptySearch) {
+                    System.out.println("(Empty) Liberando : s" + emptySearch.id);
+                    unsuspend(emptySearch);
+                    emptySearch.notifyAll();
+                }
+            }
+            
+            // Liberando as buscas com pilhas não vazias
+            for(Search nonEmptySearch : nonEmptySearches) {
+                synchronized(nonEmptySearch) {
+                    System.out.println("(Non-Empty) Liberando : s" + nonEmptySearch.id);
+                    suspended.put(nonEmptySearch, receiverSearch);
+                    // nonEmptySearch.notifyAll();
+                }
             }
         }
-        
-        // Liberando as buscas com pilhas não vazias
-        for(Search nonEmptySearch : nonEmptySearches) {
-            synchronized(nonEmptySearch) {
-                System.out.println("(Non-Empty) Liberando : s" + nonEmptySearch.id);
-                suspended.put(nonEmptySearch, receiverSearch);
-                nonEmptySearch.notifyAll();
-            }
-        }
+
     }
 }

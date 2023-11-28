@@ -2,7 +2,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Set;
 import java.util.Stack;
-import java.util.concurrent.ConcurrentHashMap;
 import java.io.IOException;
 import java.io.FileReader;
 import java.io.BufferedReader;
@@ -53,7 +52,7 @@ public class Program {
 		int nThreads = 0;
 
 		if(args.length != 2) {
-			//System.out.println("Argumentos invalidos! Digite <nome do arquivo> <numero de threads>");
+			System.out.println("Argumentos invalidos! Digite <nome do arquivo> <numero de threads>");
 			System.exit(0);
 		} else {
 			path = args[0];
@@ -107,7 +106,7 @@ public class Program {
 
 	public static void concurrentTarjan(AdjacencyList graph, int nThreads) {
 		// Preparação para o Tarjan
-		ConcurrentHashMap<Integer, Node> nodes = new ConcurrentHashMap<>(Node.getNodeMap(graph.getVerticesId()));
+		HashMap<Integer, Node> nodes = Node.getNodeMap(graph.getVerticesId());
 		Scheduler scheduler = new Scheduler(nThreads, graph, nodes);
 
 		long begin = System.nanoTime();

@@ -1,7 +1,7 @@
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
 // Classe que define um pool de threads
 class Scheduler {
@@ -12,12 +12,12 @@ class Scheduler {
     private Integer nextNode = 0;
 
 	private AdjacencyList adjList;
-	private ConcurrentHashMap<Integer, Node> nodes;
+	private HashMap<Integer, Node> nodes;
 	public ArrayList<Set<Integer>> SCCs;
 
     private final LinkedList<Node> nodesToSearch;
 
-    public Scheduler(int nThreads, AdjacencyList adjList, ConcurrentHashMap<Integer, Node> nodes) {
+    public Scheduler(int nThreads, AdjacencyList adjList, HashMap<Integer, Node> nodes) {
         this.shutdown = false;
         this.suspended = new Suspended();
 
@@ -112,7 +112,7 @@ class Scheduler {
     public Node getUnexploredChild(Node node) {
         synchronized(adjList) {
             Set<Integer> outNeighbours = adjList.getOutEdges(node.id);
-            
+
             if(outNeighbours != null && !outNeighbours.isEmpty()) {
                 for(int childId : outNeighbours) {
                     Node child = nodes.get(childId);
@@ -134,10 +134,10 @@ class Scheduler {
         }
     }
 
-    public void queueChildren(Node node) {
-        Set<Integer> outNeighbours = adjList.getOutEdges(node.id);
+    public void queueChildren(Node node) {   
+        synchronized(adjList) {
+            Set<Integer> outNeighbours = adjList.getOutEdges(node.id);
 
-        synchronized(outNeighbours) {
             if(outNeighbours != null && !outNeighbours.isEmpty()) {
                 for(int childId : outNeighbours) {
                     Node child = nodes.get(childId);
