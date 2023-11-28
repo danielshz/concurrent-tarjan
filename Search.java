@@ -26,10 +26,13 @@ public class Search extends Thread {
         this.scheduler = scheduler;
     }
 
+    // Retorna as componentes fortemente conexas encontradas após a execução da busca
     public ArrayList<Set<Integer>> getSCCs() {
         return this.SCCs;
     }
 
+    // Adiciona um nó na controlStack e na tarjanStack
+    // E atribui o nó à busca
     private void addNode(Node node) {
         node.index = this.index;
         node.lowlink = this.index;
@@ -41,6 +44,8 @@ public class Search extends Thread {
         tarjanStack.push(node);
     }
 
+    // Adiciona nas listas os nós que serão transferidos para a busca que encontrou o ciclo de bloqueio
+    // E retorna o nó que a busca estava esperando
     public synchronized Node getTransferNodes(Node blockerNode, ArrayList<Node> tempTarjan, ArrayList<Node> tempControl) {  
         Node node = tarjanStack.pop();
         int lowestLowlink = node.lowlink;
@@ -80,6 +85,7 @@ public class Search extends Thread {
         return oldWaitingFor;
     }
 
+    // Transfere os nós das buscas contidas no ciclo de bloqueio
     public synchronized ArrayList<Search> transferNodes(ArrayList<Node> senderTarjan, ArrayList<Node> senderControl) {
         int deltaIndex = this.index - controlStack.get(0).index;
         ArrayList<Search> allBlocked = new ArrayList<>();
@@ -108,9 +114,8 @@ public class Search extends Thread {
         return allBlocked;
     }
 
+    // Explora a aresta entre os nós parent e child
     private synchronized boolean expandEdge(Node parent, Node child) {
-        //System.out.println("& " + parent.id + " -> " + child.id +  " : s" + this.id + "\n");
-
         boolean wasSuspended = false;
 
         synchronized(child) {
@@ -137,24 +142,20 @@ public class Search extends Thread {
             try {
                 synchronized(this) {
                     if(this.waitingFor == child) {
-                        System.out.println("Suspend s" + this.id);
                         this.wait();
                     }
                 }
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
-
-            System.out.println("Free s" + this.id);
         }
 
         return wasSuspended;
     }
 
+    // Adiciona os nós da pilha de Tarjan na lista de componentes fortemente conexas
     private synchronized void backtrack(Node currentNode) {
         controlStack.pop();
-        
-        //System.out.println("- " + currentNode.id + " : s" + this.id);
 
         if(!controlStack.isEmpty())
             controlStack.peek().updateLowLink(currentNode.lowlink);
@@ -167,7 +168,6 @@ public class Search extends Thread {
 
             do {
                 vertex = tarjanStack.pop();
-                //System.out.println("+ " + vertex.id + " : s" + this.id);
 
                 synchronized(vertex) {
                     SCC.add(vertex.id);
@@ -187,7 +187,6 @@ public class Search extends Thread {
             for(Search blockedSearch : searchesToUnblock) {
                 synchronized(blockedSearch) {
                     if(blockedSearch.waitingFor != null && SCC.contains(blockedSearch.waitingFor.id)) {
-                        System.out.println("Unblock: s" + blockedSearch.id);
                         suspended.unsuspend(blockedSearch);
                         blockedSearch.waitingFor = null;
                         blockedSearch.notifyAll();
@@ -195,16 +194,12 @@ public class Search extends Thread {
                 }
             }
 
-            System.out.println("Finish SCC");
-
             SCCs.add(SCC);
         }
     }
 
     public synchronized void run() {
-        while(!scheduler.shutdown) {
-            System.out.println("START SEARCH s" + id);
-            
+        while(!scheduler.shutdown) {    
             // Resetando atributos
             tarjanStack.clear();
             controlStack.clear();
@@ -222,17 +217,14 @@ public class Search extends Thread {
             }
 
             while(!controlStack.isEmpty()) {
-                System.out.println("'");
-
                 Node node = controlStack.peek();
                 Node child = scheduler.getUnexploredChild(node);
                 
                 if(child != null) {
-                    //System.out.println("* " + node.id + " : s" + this.id);
                     boolean wasSuspended = expandEdge(node, child);
 
                     if(!wasSuspended) {
-                        //System.out.println("r " + node.id + " -> " + child.id +  " : s" + this.id + "\n");
+                        // Removendo aresta da lista de arestas a serem exploradas
                         scheduler.removeEdge(node, child);
                         // Adicionando nós para serem utilizados em outras buscas
                         scheduler.queueChildren(node);
@@ -242,7 +234,5 @@ public class Search extends Thread {
                 }
             }
         }
-
-        System.out.println("FIM s" + this.id);
     }
 }

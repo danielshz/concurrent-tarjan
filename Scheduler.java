@@ -42,6 +42,7 @@ class Scheduler {
         return this.SCCs;
     }
 
+    // Atualiza a lista de componentes fortemente conexas com as SCCs encontradas pelas buscas
     private void updateSCCs() {
         for(Search search : searches) {
 			for(Set<Integer> SCC : search.getSCCs()) {
@@ -74,6 +75,7 @@ class Scheduler {
         updateSCCs();
     }
 
+    // Retorna o próximo nó a ser explorado pela busca
     public Node getNewNode() {
         Node startNode;
 
@@ -83,7 +85,6 @@ class Scheduler {
 
                 if(startNode == null) {
                     this.shutdown = true;
-                    System.out.println("SHUTDOWN");
                 }
 
                 return startNode;
@@ -98,6 +99,7 @@ class Scheduler {
         }
     }
 
+    // Adiciona um nó à lista de nós a serem explorados
     public boolean queueNewNode(Node node) {
         synchronized(nodesToSearch) {
             if(nodesToSearch.size() < searches.length) {
@@ -109,6 +111,7 @@ class Scheduler {
         }
     }
     
+    // Retorna o próximo nó a ser explorado pela busca
     public Node getUnexploredChild(Node node) {
         synchronized(adjList) {
             Set<Integer> outNeighbours = adjList.getOutEdges(node.id);
@@ -124,6 +127,7 @@ class Scheduler {
         }
     }
 
+    // Remove a aresta entre dois nós
     public void removeEdge(Node node, Node child) {
         synchronized(adjList) {
             Set<Integer> outNeighbours = adjList.getOutEdges(node.id);
@@ -134,6 +138,7 @@ class Scheduler {
         }
     }
 
+    // Seleciona os filhos de um nó que ainda não foram explorados
     public void queueChildren(Node node) {   
         synchronized(adjList) {
             Set<Integer> outNeighbours = adjList.getOutEdges(node.id);
@@ -142,13 +147,8 @@ class Scheduler {
                 for(int childId : outNeighbours) {
                     Node child = nodes.get(childId);
 
-                    boolean added = false;
-
                     if(child.status == Node.Status.UNSEEN)
-                        added = queueNewNode(child);
-
-                    //if(added)
-                        //System.out.println("= " + node.id + " -> " + child.id + " : s" + node.search.id);
+                        queueNewNode(child);
                 }
             }
         }

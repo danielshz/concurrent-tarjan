@@ -30,6 +30,7 @@ public class Node {
 		this.lowlink = Math.min(this.lowlink, update);
 	}
 
+	// Transfere o nó para uma nova busca, atualizando o índice, lowlink e a busca
 	public synchronized int tranfer(int deltaIndex, Search newSearch) {
 		this.index += deltaIndex;
 		this.lowlink += deltaIndex;
@@ -38,6 +39,7 @@ public class Node {
 		return this.index;
 	}
 
+	// Retorna um HashMap com todos os nós do grafo
     public static HashMap<Integer, Node> getNodeMap(Set<Integer> nodes) {
         HashMap<Integer, Node> nodeMap = new HashMap<>();
 
@@ -47,15 +49,16 @@ public class Node {
         return nodeMap;
     }
 
+	// Retorna o próximo nó não visitado
 	public static Node getNotInSCC(Map<Integer, Node> nodes, Integer nextNode) {
-		if(nextNode >= nodes.size())
-			return null;
+		long maxId = nodes.keySet().stream().max(Integer::compare).get();
 
+		if(nextNode > maxId)
+			return null;
+		
 		Node node = nodes.get(nextNode);
 
-		long maxId = nodes.keySet().stream().max(Integer::compare).get();
-		
-		while(nextNode < maxId) {
+		while(nextNode <= maxId) {
 			if(node != null && node.status == Status.UNSEEN)
 				return node;
 			

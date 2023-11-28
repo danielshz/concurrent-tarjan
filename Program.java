@@ -114,19 +114,20 @@ public class Program {
 		// Seleção do nó inicial da busca em profundidade
 		scheduler.execute();
 		scheduler.shutdown();
-		
-		System.out.println();
-		for(Set<Integer> SCC : scheduler.getSCCs()) {
-			for(int element : SCC) {
-				System.out.print("" + element + " ");
-			}
-
-			System.out.println("");
-		}
-
-		System.out.println("");
+		scheduler.getSCCs();
 
 		long end = System.nanoTime();
+		
+		// System.out.println();
+		// for(Set<Integer> SCC : scheduler.getSCCs()) {
+		// 	for(int element : SCC) {
+		// 		System.out.print("" + element + " ");
+		// 	}
+
+		// 	System.out.println("");
+		// }
+
+		// System.out.println("");
 
 		System.out.println("Tempo em segundos: " + ((end - begin) * Math.pow(10, -9)));
 	}
@@ -150,9 +151,6 @@ public class Program {
 
 			while((line = buffer.readLine()) != null) {
 				lin++;
-
-				if(lin % 1000000 == 0)
-					System.out.println("linha " + lin);
 				
 				node = "";
 				if(line.charAt(0) == '#')
@@ -189,7 +187,6 @@ public class Program {
 			}
 
 			buffer.close();
-			System.out.println("Numero de vertices: " + g.getNumVertices() + "\nNumero de arestas: " + edgeNumber);
 			return g;
 		} catch (IOException e) {
 			System.out.println("arquivo não encontrado!");

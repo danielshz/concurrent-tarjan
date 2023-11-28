@@ -1,4 +1,5 @@
-import org.junit.Before;
+
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import static org.junit.Assert.*;
@@ -9,34 +10,19 @@ import java.util.Set;
 
 public class TarjanTest {
     private static final int NTHREADS = 4;
-    private static final String GRAPH_PATH = "./grafos/Wiki-Vote.txt";
+    private static final String GRAPH_PATH = "./grafos/facebook_combined.txt";
+    private static boolean setUpIsDone = false;
 
-    private AdjacencyList graphSequential;
-    private HashMap<Integer, Node> nodesSequential;
-    private ArrayList<Set<Integer>> SCCsSequential;
-    private Node startNodeSequential;
+    private static AdjacencyList graphSequential;
+    private static HashMap<Integer, Node> nodesSequential;
+    private static ArrayList<Set<Integer>> SCCsSequential;
+    private static Node startNodeSequential;
     
-    private AdjacencyList graphConcurrent;
-    private HashMap<Integer, Node> nodesConcurrent;
-    private ArrayList<Set<Integer>> SCCsConcurrent;
+    private static AdjacencyList graphConcurrent;
+    private static HashMap<Integer, Node> nodesConcurrent;
+    private static ArrayList<Set<Integer>> SCCsConcurrent;
 
-    @Before
-    public void setUp() {
-        graphSequential = Program.constructGraph(GRAPH_PATH);
-        nodesSequential = Node.getNodeMap(graphSequential.getVerticesId());
-        SCCsSequential = new ArrayList<>();
-        startNodeSequential = Node.getNotInSCC(nodesSequential, 0);
-        
-        sequencialTarjan();
-
-        graphConcurrent = Program.constructGraph(GRAPH_PATH);
-        nodesConcurrent = Node.getNodeMap(graphConcurrent.getVerticesId());
-        SCCsConcurrent = new ArrayList<>();
-
-        concurrentTarjan();
-    }
-
-    public void sequencialTarjan() {
+    public static void sequencialTarjan() {
         Tarjan tarjan = new Tarjan(graphSequential, nodesSequential);
 
         Integer nextNode = 0;
@@ -53,34 +39,77 @@ public class TarjanTest {
 
         long end = System.nanoTime();
 
-        System.out.println("Tempo em segundos: " + ((end - begin) * Math.pow(10, -9)));
+        System.out.println("Tempo em segundos (Sequencial): " + ((end - begin) * Math.pow(10, -9)));
     }
 
-    public void concurrentTarjan() {
-		Scheduler scheduler = new Scheduler(NTHREADS, graphConcurrent, nodesConcurrent);
+    public static void concurrentTarjan() {
+        Scheduler scheduler = new Scheduler(NTHREADS, graphConcurrent, nodesConcurrent);
 
-		long begin = System.nanoTime();
+        long begin = System.nanoTime();
 
-		// Seleção do nó inicial da busca em profundidade
-		scheduler.execute();
-		scheduler.shutdown();
+        scheduler.execute();
+        scheduler.shutdown();
 
+        long end = System.nanoTime();
+        
         SCCsConcurrent = scheduler.getSCCs();
 
-		// for(Set<Integer> SCC : scheduler.getSCCs()) {
-		// 	for(int element : SCC) {
-		// 		System.out.print("" + element + " ");
-		// 	}
+        System.out.println("Tempo em segundos (Concorrente): " + ((end - begin) * Math.pow(10, -9)));
+    }
 
-		// 	System.out.println("");
-		// }
+    @BeforeClass
+    public static void setUp() {
+        if(setUpIsDone) {
+            return;
+        }
 
-		// System.out.println("");
+        graphSequential = Program.constructGraph(GRAPH_PATH);
+        nodesSequential = Node.getNodeMap(graphSequential.getVerticesId());
+        SCCsSequential = new ArrayList<>();
+        startNodeSequential = Node.getNotInSCC(nodesSequential, 0);
+        
+        sequencialTarjan();
 
-		long end = System.nanoTime();
+        graphConcurrent = Program.constructGraph(GRAPH_PATH);
+        nodesConcurrent = Node.getNodeMap(graphConcurrent.getVerticesId());
+        SCCsConcurrent = new ArrayList<>();
 
-		System.out.println("Tempo em segundos: " + ((end - begin) * Math.pow(10, -9)));
-	}
+        concurrentTarjan();
+
+        setUpIsDone = true;
+    }
+
+    @Test
+    public void allSequentialNodesCompleted() {
+        for(Node node : nodesSequential.values()) {
+            assertEquals(Node.Status.COMPLETE, node.status);
+        }
+    }
+
+    @Test
+    public void allSequentialEdgesExplored() {
+        for(Node node : nodesSequential.values()) {
+            Set<Integer> outNeighbours = graphSequential.getOutEdges(node.id);
+
+            assertTrue(outNeighbours == null || outNeighbours.isEmpty());
+        }
+    }
+
+    @Test
+    public void allConcurrentNodesCompleted() {
+        for(Node node : nodesConcurrent.values()) {
+            assertEquals(Node.Status.COMPLETE, node.status);
+        }
+    }
+
+    @Test
+    public void allConcurrentEdgesExplored() {
+        for(Node node : nodesConcurrent.values()) {
+            Set<Integer> outNeighbours = graphConcurrent.getOutEdges(node.id);
+
+            assertTrue(outNeighbours == null || outNeighbours.isEmpty());
+        }
+    }
 
     @Test
     public void correctness() {
@@ -99,12 +128,6 @@ public class TarjanTest {
                     break;
                 }
             }
-
-            // if(!found) {
-            //     for(Integer nodeId : SCCSequential) {
-            //         System.out.println(nodeId);
-            //     }
-            // }
             
             assertTrue(found);
         }

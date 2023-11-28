@@ -8,43 +8,35 @@ public class Suspended {
         this.suspended = new HashMap<>();
     }
 
+    // Verifica se há ciclo de bloqueio entre as buscas e, se não houver, adiciona a busca ao HashMap suspended
+    // Retorna true se a busca foi suspensa e false caso haja ciclo de bloqueio e os nós das outras buscas tenham sido transferidos
     public boolean suspend(Search search, Node child) {
         ArrayList<Search> blokingCycle;
+
         synchronized(suspended) {
             blokingCycle = blokingCycle(child.search, search);
             
             if(blokingCycle == null) {
                 suspended.put(search, child.search);
-                System.out.println("Sem ciclo ::: s" + search.id);
                 return true;
             }
         }
 
-        String ciclo = "";
-
-        for(Search search2 : blokingCycle) {
-            ciclo += "s" + search2.id + " -> ";    
-        }
-
-        System.out.println("Ciclo: " + ciclo);
-        
-        System.out.println("Com ciclo ::: s" + search.id);
         transfer(search, blokingCycle);
           
         return false;
     }
 
+    // Remove a busca do HashMap suspended
     public void unsuspend(Search search) {
         synchronized(suspended) {
             suspended.remove(search);
         }
     }
 
+    // Retorna o ciclo de bloqueio, se existir, percorrendo as buscas bloqueadas pelo HashMap suspended
     private ArrayList<Search> blokingCycle(Search start, Search target) {
         Search current = start;
-
-        System.out.println(":::::::::::::: b s" + target.id + " : w s" + start.id);
-        System.out.println(":::::::::::::: b n" + target.controlStack.peek().id + " : w n" + target.waitingFor.id);
         
         ArrayList<Search> path = new ArrayList<>();
         path.add(current);
@@ -58,7 +50,8 @@ public class Suspended {
 
         return current != target ? null : path;
     }
-
+    
+    // Transfere os nós das buscas contidas no ciclo de bloqueio para uma nova busca que também está no ciclo
     private void transfer(Search receiverSearch, ArrayList<Search> blokingPath) {
         ArrayList<ArrayList<Search>> blockeds = new ArrayList<>();
         ArrayList<Search> blockers = new ArrayList<>();
@@ -72,6 +65,7 @@ public class Suspended {
             ArrayList<Node> tempTarjan = new ArrayList<>();
             ArrayList<Node> tempControl = new ArrayList<>();
 
+            // Pegando o nó que bloqueia a busca atual
             Node oldWaitingFor = senderSearch.getTransferNodes(blockerNode, tempTarjan, tempControl);
             
             // Armazendo buscas com pilhas vazias e não vazias para desbloqueio posterior
@@ -115,7 +109,6 @@ public class Suspended {
             // Liberando as buscas com pilhas vazias
             for(Search emptySearch : emptySearches) {
                 synchronized(emptySearch) {
-                    System.out.println("(Empty) Liberando : s" + emptySearch.id);
                     unsuspend(emptySearch);
                     emptySearch.notifyAll();
                 }
@@ -124,9 +117,7 @@ public class Suspended {
             // Liberando as buscas com pilhas não vazias
             for(Search nonEmptySearch : nonEmptySearches) {
                 synchronized(nonEmptySearch) {
-                    System.out.println("(Non-Empty) Liberando : s" + nonEmptySearch.id);
                     suspended.put(nonEmptySearch, receiverSearch);
-                    // nonEmptySearch.notifyAll();
                 }
             }
         }
